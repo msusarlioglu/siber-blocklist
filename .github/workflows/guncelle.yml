@@ -1,0 +1,48 @@
+name: Listeleri güncelle
+
+on:
+  schedule:
+    - cron: "7 * * * *"      # her saat (tam saatte GitHub kuyruğu yoğun, 7. dakika daha dakik çalışır)
+  workflow_dispatch:          # elle çalıştırma
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write              # 60 gün kuralına karşı iş akışını açık tutmak için
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  guncelle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.yayin.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Listeleri çek ve böl
+        env:
+          ONCEKI_DURUM_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/status.json
+        run: python cek.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: yayin
+        uses: actions/deploy-pages@v4
+      # Herkese açık depolarda 60 gün commit olmazsa zamanlanmış iş akışları kapanır; ayda bir yeniden etkinleştir.
+      - name: Zamanlamayı canlı tut
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%d%H)" = "0100" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/guncelle.yml/enable" && echo "iş akışı yeniden etkinleştirildi"
+          fi
