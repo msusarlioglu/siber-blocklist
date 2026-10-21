@@ -19,6 +19,8 @@ Her dosyada **en fazla 120.000 satır**, satır başına bir kayıt; başlık ya
 Liste büyüdüğünde güvenlik duvarı tanımları değişmesin diye dosya sayısı sabittir (domain için 6 = 720.000 kapasite);
 kullanılmayan dosyalar boş durur. Boş dosyayı iki üretici de hatasız okur. Kapasite aşılırsa betik ek dosya
 (`domain-list-7.txt` …) üretir — `status.json`'dan izlenebilir.
+Bir tür sabit kapasitenin **%80'ine** ulaşınca depoda *"Liste kapasitesi dolmak üzere"* kaydı (issue) açılır,
+depo sahibine e-posta gider: güvenlik duvarına yeni dosyayı ekleyip `cek.py` içindeki `SABIT_PARCA`'yı artırmak yeterli.
 
 Adres: `https://<kullanıcı>.github.io/siber-blocklist/<dosya>`
 

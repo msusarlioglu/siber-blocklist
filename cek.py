@@ -33,6 +33,7 @@ SAYFA_BOYU = 9999                 # API'nin izin verdiği en yüksek değer
 MAX_SATIR = 120_000               # güvenlik duvarı başına dosya sınırı
 SABIT_PARCA = {"ip": 2, "ipv6": 1, "domain": 6, "url": 2}
 DUSUS_SINIRI = 0.20               # önceki yayına göre %20'den fazla düşüş -> yayınlama
+UYARI_ORANI = 0.80                # sabit dosyaların %80'i dolunca uyar (güvenlik duvarına yeni dosya eklenmeli)
 CIKTI = os.environ.get("CIKTI_KLASORU", "site")
 ONCEKI_DURUM_URL = os.environ.get("ONCEKI_DURUM_URL", "")   # yayındaki status.json (koruma için)
 UA = "Marmara-Blocklist/1.0 (+https://github.com/msusarlioglu)"
@@ -150,6 +151,18 @@ def main():
         dosyalar = yaz_parcalar(ad, liste, SABIT_PARCA[ad])
         durum["turler"][ad] = {"kayit": len(liste), "atilan_gecersiz_tekrar": len(ham["ip6" if ad == "ipv6" else ad][0]) - len(liste), "dosyalar": dosyalar}
         print(f"{ad:7} yazıldı {len(liste):>8,} kayıt -> {', '.join(d['dosya'] + ' (' + format(d['satir'], ',') + ')' for d in dosyalar)}")
+    durum["kapasite_uyarilari"] = []
+    for ad, v in durum["turler"].items():
+        kapasite = SABIT_PARCA[ad] * MAX_SATIR
+        if v["kayit"] >= kapasite * UYARI_ORANI:
+            mesaj = (f"{ad}: {v['kayit']:,} kayıt, sabit {SABIT_PARCA[ad]} dosyanın kapasitesi {kapasite:,} "
+                     f"(%{v['kayit'] * 100 // kapasite}). Güvenlik duvarına {ad}-list-{SABIT_PARCA[ad] + 1}.txt eklenmeli "
+                     f"ve cek.py içindeki SABIT_PARCA artırılmalı.")
+            durum["kapasite_uyarilari"].append(mesaj)
+            print(f"::warning::{mesaj}")
+    if durum["kapasite_uyarilari"] and os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            f.write("kapasite_uyarisi<<SON\n" + "\n".join(durum["kapasite_uyarilari"]) + "\nSON\n")
     durum["sure_sn"] = round(time.time() - t0, 1)
     with open(os.path.join(CIKTI, "status.json"), "w", encoding="utf-8") as f:
         json.dump(durum, f, ensure_ascii=False, indent=1)

@@ -10,6 +10,7 @@ permissions:
   pages: write
   id-token: write
   actions: write              # 60 gün kuralına karşı iş akışını açık tutmak için
+  issues: write               # kapasite uyarısı için kayıt açar (sahibine e-posta gider)
 
 concurrency:
   group: pages
@@ -28,6 +29,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Listeleri çek ve böl
+        id: cek
         env:
           ONCEKI_DURUM_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/status.json
         run: python cek.py
@@ -37,6 +39,16 @@ jobs:
           path: site
       - id: yayin
         uses: actions/deploy-pages@v4
+      - name: Kapasite uyarısı
+        if: steps.cek.outputs.kapasite_uyarisi != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UYARI: ${{ steps.cek.outputs.kapasite_uyarisi }}
+        run: |
+          baslik="Liste kapasitesi dolmak üzere"
+          if [ -z "$(gh issue list -R ${{ github.repository }} --state open --search "$baslik in:title" --json number -q '.[].number')" ]; then
+            gh issue create -R ${{ github.repository }} --title "$baslik" --body "$UYARI"
+          fi
       # Herkese açık depolarda 60 gün commit olmazsa zamanlanmış iş akışları kapanır; ayda bir yeniden etkinleştir.
       - name: Zamanlamayı canlı tut
         if: github.event_name == 'schedule'
