@@ -55,6 +55,17 @@ def getir(url, deneme=4):
             time.sleep(bekle)
 
 
+def sayfa_cek(tur, sayfa, beklenen, deneme=4):
+    """Bir sayfayı çeker; API ara sıra eksik/boş sayfa döndürdüğü için beklenenden az gelirse yeniden dener."""
+    for i in range(deneme):
+        modeller = getir(f"{API}?type={tur}&per-page={SAYFA_BOYU}&page={sayfa}").get("models", [])
+        if len(modeller) >= beklenen or i == deneme - 1:
+            return modeller
+        bekle = 10 * (i + 1)
+        print(f"  uyarı: {tur} sayfa {sayfa} eksik geldi ({len(modeller)}/{beklenen}) - {bekle} sn sonra yeniden denenecek", file=sys.stderr)
+        time.sleep(bekle)
+
+
 def tur_cek(tur):
     """Bir türün bütün sayfalarını çeker; (kayıtlar, API'nin bildirdiği toplam)."""
     ilk = getir(f"{API}?type={tur}&per-page={SAYFA_BOYU}&page=1")
@@ -62,7 +73,9 @@ def tur_cek(tur):
     kayitlar = [m.get("url", "") for m in ilk.get("models", [])]
     for sayfa in range(2, sayfa_sayisi + 1):
         time.sleep(0.5)  # kaynağı yormamak için
-        kayitlar += [m.get("url", "") for m in getir(f"{API}?type={tur}&per-page={SAYFA_BOYU}&page={sayfa}").get("models", [])]
+        # son sayfa dışındakiler dolu gelmeli; son sayfada kalan kadar kayıt beklenir
+        beklenen = SAYFA_BOYU if sayfa < sayfa_sayisi else max(0, toplam - SAYFA_BOYU * (sayfa_sayisi - 1))
+        kayitlar += [m.get("url", "") for m in sayfa_cek(tur, sayfa, beklenen)]
     return kayitlar, toplam
 
 
